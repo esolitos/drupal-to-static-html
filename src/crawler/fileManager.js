@@ -205,6 +205,50 @@ class FileManager {
   }
 
   /**
+   * Write a _headers file for Cloudflare Pages / Netlify.
+   * Scans the snapshot for files with no extension (i.e. binary downloads saved
+   * without a filename like download_all_files/<nid>/field_attachment) and emits
+   * a header rule for each one so that static hosts serve them with the correct
+   * Content-Type and a download prompt instead of trying to render them.
+   */
+  saveHeadersFile() {
+    if (!this.snapshotDir) throw new Error('Snapshot not initialized');
+
+    const binaryPaths = [];
+
+    const scan = (dir, relBase) => {
+      for (const entry of fs.readdirSync(dir)) {
+        if (entry.startsWith('.')) continue;
+        const full = path.join(dir, entry);
+        const rel  = path.join(relBase, entry);
+        if (fs.statSync(full).isDirectory()) {
+          scan(full, rel);
+        } else if (!path.extname(entry)) {
+          binaryPaths.push('/' + rel.replace(/\\/g, '/'));
+        }
+      }
+    };
+
+    scan(this.snapshotDir, '');
+
+    const lines = [
+      '# Auto-generated — custom response headers for Cloudflare Pages / Netlify.',
+      '# Extension-less files are binary downloads; force a download prompt.',
+      '',
+    ];
+
+    for (const p of binaryPaths) {
+      lines.push(p);
+      lines.push('  Content-Type: application/octet-stream');
+      lines.push('  Content-Disposition: attachment');
+      lines.push('');
+    }
+
+    fs.writeFileSync(path.join(this.snapshotDir, '_headers'), lines.join('\n'), 'utf-8');
+    console.log(`Wrote _headers (${binaryPaths.length} binary-download rules)`);
+  }
+
+  /**
    * Create/update a 'latest' symlink in the output directory pointing to this snapshot.
    * Allows serving from a fixed path: /output/latest/
    */

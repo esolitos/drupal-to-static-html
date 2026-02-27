@@ -136,6 +136,7 @@ async function runCrawl() {
       crawlDuration: crawlResult.stats.duration,
     });
 
+    fileManager.saveHeadersFile();
     fileManager.updateLatestSymlink();
 
     const summary = fileManager.getSummary();
