@@ -28,9 +28,8 @@ jobs:
       - name: Start mock server
         run: |
           docker run -d --name drupal-mock --network test-net drupal-mock
-          # Wait until nginx is ready (up to 15 s)
-          timeout 15 sh -c \
-            'until docker exec drupal-mock wget -q -O /dev/null http://localhost/; do sleep 0.5; done'
+          # nginx:alpine starts in < 1 s; give it a small buffer
+          sleep 2
 
       # ── Run the crawler ────────────────────────────────────────────────────
 
