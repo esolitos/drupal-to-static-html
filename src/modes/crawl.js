@@ -88,6 +88,31 @@ async function runCrawl() {
           const rewrittenPath = HtmlUtils.rewriteDrupalPaths(urlPath);
           fileManager.saveAssetAtPath(rewrittenPath, buffer);
           assetCount++;
+        } else if (response.status === 404) {
+          // Some Drupal sites have broken links pointing to /sites/example.com/files/
+          // while the file actually lives under /sites/default/files/. Try the fallback.
+          const fallbackUrl = assetUrl.replace(/\/sites\/(?!default\/)[^/]+\/files\//, '/sites/default/files/');
+          if (fallbackUrl !== assetUrl) {
+            logger.warn(`Asset 404, retrying with default files path: ${assetUrl}`);
+            const fallback = await axios.get(fallbackUrl, {
+              timeout: config.connectTimeout,
+              responseType: 'arraybuffer',
+              headers: { 'User-Agent': config.getRandomUserAgent(), 'Host': config.siteHost },
+              validateStatus: () => true,
+            });
+            if (fallback.status === 200) {
+              const buffer = Buffer.from(fallback.data);
+              // Both paths rewrite to the same /files/... destination, so the HTML
+              // reference (rewritten from the original URL) will resolve correctly.
+              const urlPath = new URL(assetUrl).pathname;
+              const rewrittenPath = HtmlUtils.rewriteDrupalPaths(urlPath);
+              fileManager.saveAssetAtPath(rewrittenPath, buffer);
+              assetCount++;
+              logger.info(`  Fallback succeeded for: ${fallbackUrl}`);
+            } else {
+              logger.warn(`  Fallback also failed (${fallback.status}): ${fallbackUrl}`);
+            }
+          }
         }
       } catch (err) {
         logger.warn(`Failed to download asset ${assetUrl}: ${err.message}`);
