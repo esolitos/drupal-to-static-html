@@ -81,6 +81,38 @@ class FileManager {
     }
   }
 
+  /**
+   * Save an asset at an explicit relative path (matching the path used in post-processed HTML).
+   * Use this instead of saveAsset to keep saved paths in sync with HTML references.
+   */
+  saveAssetAtPath(relPath, fileBuffer) {
+    if (!this.snapshotDir) {
+      throw new Error('Snapshot not initialized. Call initializeSnapshot() first.');
+    }
+
+    // Strip leading slash and normalize
+    const normalized = path.normalize(relPath.replace(/^\//, ''));
+
+    // Security: prevent directory traversal
+    const fullPath = path.resolve(this.snapshotDir, normalized);
+    if (!fullPath.startsWith(path.resolve(this.snapshotDir) + path.sep)) {
+      console.warn(`Skipping asset with unsafe path: ${relPath}`);
+      return null;
+    }
+
+    // Deduplicate by content hash
+    const contentHash = crypto.createHash('md5').update(fileBuffer).digest('hex');
+    if (this.assetMap.has(contentHash)) return this.assetMap.get(contentHash);
+
+    fs.ensureDirSync(path.dirname(fullPath));
+    fs.writeFileSync(fullPath, fileBuffer);
+
+    const result = { relPath: normalized, contentHash };
+    this.assetMap.set(contentHash, result);
+    this.assetCount++;
+    return result;
+  }
+
   saveAsset(assetUrl, fileBuffer, mimeType = 'application/octet-stream') {
     if (!this.snapshotDir) {
       throw new Error('Snapshot not initialized. Call initializeSnapshot() first.');

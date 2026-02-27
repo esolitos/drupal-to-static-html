@@ -60,7 +60,8 @@ class HtmlUtils {
   }
 
   static rewriteDrupalPaths(url) {
-    return url.replace(/\/sites\/default\/files\//g, '/files/');
+    // Handle /sites/default/files/ and multisite /sites/example.com/files/
+    return url.replace(/\/sites\/[^/]+\/files\//g, '/files/');
   }
 
   static hasJatos(html) {

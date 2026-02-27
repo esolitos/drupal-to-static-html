@@ -8,6 +8,7 @@ const CrawlerConfig = require('../crawler/config');
 const Crawler = require('../crawler/crawler');
 const PostProcessor = require('../processor/postProcessor');
 const FileManager = require('../crawler/fileManager');
+const HtmlUtils = require('../processor/htmlUtils');
 const Logger = require('../utils/logger');
 
 const logger = new Logger('crawl');
@@ -80,9 +81,12 @@ async function runCrawl() {
         });
 
         if (response.status === 200) {
-          const mimeType = (response.headers['content-type'] || '').split(';')[0].trim();
           const buffer = Buffer.from(response.data);
-          fileManager.saveAsset(assetUrl, buffer, mimeType);
+          // Compute save path matching the post-processed HTML references:
+          // apply the same Drupal path rewrite so the file lands where the HTML points.
+          const urlPath = new URL(assetUrl).pathname;
+          const rewrittenPath = HtmlUtils.rewriteDrupalPaths(urlPath);
+          fileManager.saveAssetAtPath(rewrittenPath, buffer);
           assetCount++;
         }
       } catch (err) {
