@@ -204,6 +204,28 @@ class FileManager {
     fs.writeFileSync(metadataFile, JSON.stringify(data, null, 2), 'utf-8');
   }
 
+  /**
+   * Create/update a 'latest' symlink in the output directory pointing to this snapshot.
+   * Allows serving from a fixed path: /output/latest/
+   */
+  updateLatestSymlink() {
+    if (!this.snapshotDir) throw new Error('Snapshot not initialized');
+
+    const latestPath = path.join(this.outputDir, 'latest');
+    const snapshotName = path.basename(this.snapshotDir);
+
+    // Remove existing symlink or stale entry (lstat doesn't follow symlinks)
+    try {
+      fs.lstatSync(latestPath); // throws if absent
+      fs.removeSync(latestPath);
+    } catch (e) {
+      // nothing there — that's fine
+    }
+
+    fs.symlinkSync(snapshotName, latestPath);
+    console.log(`Updated 'latest' -> ${snapshotName}`);
+  }
+
   getSummary() {
     return {
       snapshotDir: this.snapshotDir,

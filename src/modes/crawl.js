@@ -126,7 +126,7 @@ async function runCrawl() {
 
     logger.info(`Downloaded ${assetCount} assets`);
 
-    // Save snapshot metadata
+    // Save snapshot metadata and update 'latest' symlink
     fileManager.saveMetadata({
       siteHost: config.siteHost,
       crawledPages: crawlResult.stats.pagesCrawled,
@@ -135,6 +135,8 @@ async function runCrawl() {
       failedUrls: crawlResult.failed.length,
       crawlDuration: crawlResult.stats.duration,
     });
+
+    fileManager.updateLatestSymlink();
 
     const summary = fileManager.getSummary();
     logger.info('Crawl complete!');
