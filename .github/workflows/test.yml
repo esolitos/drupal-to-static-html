@@ -1,0 +1,120 @@
+name: Integration Test
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── Build both images ──────────────────────────────────────────────────
+
+      - name: Build mock Drupal site (nginx)
+        run: docker build -t drupal-mock ./tests/fixtures/
+
+      - name: Build crawler image
+        run: docker build -t crawler-test .
+
+      # ── Wire them together on a private network ────────────────────────────
+
+      - name: Create Docker network
+        run: docker network create test-net
+
+      - name: Start mock server
+        run: |
+          docker run -d --name drupal-mock --network test-net drupal-mock
+          # Wait until nginx is ready (up to 15 s)
+          timeout 15 sh -c \
+            'until docker exec drupal-mock wget -q -O /dev/null http://localhost/; do sleep 0.5; done'
+
+      # ── Run the crawler ────────────────────────────────────────────────────
+
+      - name: Run crawl against mock site
+        run: |
+          mkdir -p output
+          docker run --rm \
+            --network test-net \
+            -v "$(pwd)/output:/output" \
+            -e SITE_HOST=drupal-mock \
+            -e SITE_PROTOCOL=http \
+            -e SITE_IP=drupal-mock \
+            -e LINKEDIN_PROFILE=https://linkedin.com/in/test-user \
+            -e MODE=crawl \
+            -e CRAWL_DELAY=0 \
+            crawler-test
+
+      # ── Assertions ────────────────────────────────────────────────────────
+
+      - name: Assert — snapshot structure and latest symlink
+        run: |
+          test -L output/latest \
+            || (echo "FAIL: 'latest' symlink missing" && exit 1)
+          test -f output/latest/index.html \
+            || (echo "FAIL: index.html missing" && exit 1)
+          test -f output/latest/about/index.html \
+            || (echo "FAIL: about/index.html missing" && exit 1)
+          test -f output/latest/contact/index.html \
+            || (echo "FAIL: contact/index.html missing" && exit 1)
+          echo "OK: snapshot structure"
+
+      - name: Assert — Drupal file paths rewritten (/sites/default/files/ → /files/)
+        run: |
+          test -f output/latest/files/logo.svg \
+            || (echo "FAIL: logo.svg not at /files/ (default-files path not rewritten)" && exit 1)
+          test -f output/latest/files/css/style.css \
+            || (echo "FAIL: style.css not at /files/css/" && exit 1)
+          echo "OK: Drupal path rewriting"
+
+      - name: Assert — multisite 404 fallback (/sites/drupal-mock/files/ → /sites/default/files/)
+        run: |
+          test -f output/latest/files/photo.svg \
+            || (echo "FAIL: photo.svg missing — multisite 404 fallback did not work" && exit 1)
+          echo "OK: multisite fallback"
+
+      - name: Assert — HTML URL rewriting (absolute same-domain → relative)
+        run: |
+          # Absolute same-domain href must be rewritten to relative
+          grep -q 'href="/contact"' output/latest/index.html \
+            || (echo "FAIL: absolute same-domain URL not rewritten to relative" && exit 1)
+          # No absolute same-domain hrefs should remain
+          ! grep -q 'href="http://drupal-mock' output/latest/index.html \
+            || (echo "FAIL: absolute same-domain URL still present in output" && exit 1)
+          # External links must stay absolute
+          grep -q 'href="https://external.example.com/page"' output/latest/index.html \
+            || (echo "FAIL: external URL was incorrectly rewritten" && exit 1)
+          # Asset src must be rewritten
+          grep -q 'src="/files/logo.svg"' output/latest/index.html \
+            || (echo "FAIL: /sites/default/files/ src not rewritten to /files/" && exit 1)
+          echo "OK: URL rewriting"
+
+      - name: Assert — admin elements removed
+        run: |
+          ! grep -q 'id="admin-bar"' output/latest/index.html \
+            || (echo "FAIL: admin-bar div still present in output" && exit 1)
+          ! grep -q 'href="/user/logout"' output/latest/index.html \
+            || (echo "FAIL: /user/logout link still present in output" && exit 1)
+          echo "OK: admin element removal"
+
+      - name: Assert — JATOS form replaced with LinkedIn link
+        run: |
+          ! grep -q 'class="jatos-signup"' output/latest/contact/index.html \
+            || (echo "FAIL: original JATOS form still present" && exit 1)
+          grep -q 'jatos-replacement' output/latest/contact/index.html \
+            || (echo "FAIL: jatos-replacement block not found" && exit 1)
+          grep -q 'linkedin.com/in/test-user' output/latest/contact/index.html \
+            || (echo "FAIL: LinkedIn URL not present in replacement" && exit 1)
+          echo "OK: JATOS replacement"
+
+      # ── Verify mode must pass cleanly on the test snapshot ─────────────────
+
+      - name: Run verify mode (must exit 0)
+        run: |
+          docker run --rm \
+            -v "$(pwd)/output:/output" \
+            -e MODE=verify \
+            crawler-test

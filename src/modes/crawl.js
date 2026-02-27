@@ -28,7 +28,7 @@ async function runCrawl() {
 
   // Initialize post-processor
   const processor = new PostProcessor({
-    siteDomain: config.siteHost,
+    siteDomain: config.siteHostname,
     linkedinProfile: config.linkedInProfile,
     verbose: process.env.VERBOSE === 'true',
   });

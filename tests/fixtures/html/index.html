@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Test Drupal Site - Home</title>
+  <!-- Asset: /sites/default/files/ path → must be rewritten to /files/ in output -->
+  <link rel="stylesheet" href="/sites/default/files/css/style.css">
+</head>
+<body>
+  <!-- Admin toolbar: must be removed from output -->
+  <div id="admin-bar">
+    Admin Toolbar
+    <a href="/admin">Admin panel</a>
+  </div>
+
+  <h1>Welcome to the Test Site</h1>
+
+  <nav>
+    <ul>
+      <!-- Relative link: must remain as-is -->
+      <li><a href="/about">About</a></li>
+      <!-- Absolute same-domain link: must be rewritten to relative /contact -->
+      <li><a href="http://drupal-mock/contact">Contact</a></li>
+      <!-- External link: must stay absolute -->
+      <li><a href="https://external.example.com/page">External</a></li>
+      <!-- Admin link: must be removed from output -->
+      <li><a href="/user/logout">Logout</a></li>
+    </ul>
+  </nav>
+
+  <!-- Image with Drupal default files path: src must be rewritten to /files/logo.svg -->
+  <img src="/sites/default/files/logo.svg" alt="Site Logo">
+
+  <main>
+    <p>Home page content for integration testing.</p>
+  </main>
+</body>
+</html>

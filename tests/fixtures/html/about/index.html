@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>About - Test Drupal Site</title>
+  <link rel="stylesheet" href="/sites/default/files/css/style.css">
+</head>
+<body>
+  <h1>About</h1>
+  <a href="/">Home</a>
+
+  <!--
+    Multisite broken path: /sites/drupal-mock/files/photo.svg returns 404.
+    The crawler must fall back to /sites/default/files/photo.svg (which exists)
+    and save it at /files/photo.svg (the rewritten path both share).
+  -->
+  <img src="/sites/drupal-mock/files/photo.svg" alt="Team Photo">
+
+  <p>About page content for integration testing.</p>
+</body>
+</html>

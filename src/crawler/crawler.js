@@ -203,7 +203,8 @@ class Crawler {
     try {
       const parsedUrl = new URL(url);
       const urlHost = parsedUrl.hostname.replace(/^www\./, '');
-      const siteHost = this.config.siteHost.replace(/^www\./, '');
+      // Use siteHostname (port-stripped) so SITE_HOST=example.com:8080 still matches
+      const siteHost = this.config.siteHostname.replace(/^www\./, '');
       return urlHost === siteHost;
     } catch (error) {
       return false;

@@ -1,0 +1,5 @@
+/* Test stylesheet — served from /sites/default/files/css/style.css */
+body  { font-family: sans-serif; margin: 0; padding: 20px; color: #333; }
+h1    { color: #336699; }
+nav ul { list-style: none; padding: 0; }
+nav li { display: inline; margin-right: 1em; }

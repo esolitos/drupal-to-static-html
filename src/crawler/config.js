@@ -7,6 +7,9 @@ class CrawlerConfig {
   constructor(env = process.env) {
     // Site configuration
     this.siteHost = env.SITE_HOST || 'localhost';
+    // Hostname only (no port) — used for same-domain checks and Host header
+    this.siteHostname = this.siteHost.split(':')[0];
+    this.siteProtocol = env.SITE_PROTOCOL || 'https';
     this.siteIp = env.SITE_IP || '127.0.0.1';
     this.linkedInProfile = env.LINKEDIN_PROFILE || 'https://linkedin.com';
 
@@ -42,7 +45,7 @@ class CrawlerConfig {
   }
 
   getSiteUrl() {
-    return `https://${this.siteHost}`;
+    return `${this.siteProtocol}://${this.siteHost}`;
   }
 
   toString() {
