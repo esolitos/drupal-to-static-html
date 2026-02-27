@@ -91,6 +91,11 @@ class Crawler {
           });
 
           newUrls.assets.forEach((asset) => this.assetUrls.add(asset));
+        } else if (page.status === 'binary-asset') {
+          // Non-HTML response (e.g. application/zip, Content-Disposition: attachment).
+          // Route to the asset download pipeline so it is saved as binary, not garbled HTML.
+          console.log(`  Binary asset (${page.contentType}) — queued for asset download`);
+          this.assetUrls.add(url);
         } else {
           console.log(`  Status ${page.status} (skipping)`);
           this.failedUrls.push({ url, status: page.status, error: page.error });
@@ -134,6 +139,19 @@ class Crawler {
       const response = await this.httpClient.get(url, { headers });
 
       if (response.status === 200 && response.data) {
+        const contentType = (response.headers['content-type'] || '').split(';')[0].trim().toLowerCase();
+        const contentDisp = (response.headers['content-disposition'] || '').toLowerCase();
+
+        // Only treat as a page if the response is HTML (or content-type is absent, which defaults to text/html per spec).
+        // Any other content-type or a Content-Disposition: attachment header means the response is a
+        // downloadable binary that must be saved as an asset, not parsed as HTML.
+        const isHtml = !contentType || contentType === 'text/html' || contentType === 'application/xhtml+xml';
+        const isAttachment = /\battachment\b/.test(contentDisp);
+
+        if (!isHtml || isAttachment) {
+          return { html: '', status: 'binary-asset', contentType };
+        }
+
         return { html: response.data, status: 200 };
       } else {
         return { html: '', status: response.status, error: `HTTP ${response.status}` };
@@ -148,6 +166,11 @@ class Crawler {
     }
   }
 
+  // File extensions that should be downloaded as binary assets rather than crawled as pages.
+  static get BINARY_EXTENSIONS() {
+    return /\.(zip|gz|tar|7z|rar|bz2|pdf|docx?|xlsx?|pptx?|odt|ods|odp|csv|mp3|mp4|wav|ogg|webm|avi|mov|mkv|flac|aac|woff2?|ttf|eot|otf)(\?.*)?$/i;
+  }
+
   extractUrls(html, pageUrl) {
     const urls = new Set();
     const assets = new Set();
@@ -158,9 +181,18 @@ class Crawler {
       $('a[href]').each((_, elem) => {
         const href = $(elem).attr('href');
         const absoluteUrl = this.resolveUrl(href, pageUrl);
-        if (this.isSameDomain(absoluteUrl)) {
-          urls.add(absoluteUrl);
-        }
+        if (!this.isSameDomain(absoluteUrl)) return;
+
+        // Binary files linked via <a href> should be downloaded as assets, not crawled as pages.
+        try {
+          const pathname = new URL(absoluteUrl).pathname;
+          if (Crawler.BINARY_EXTENSIONS.test(pathname)) {
+            assets.add(absoluteUrl);
+            return;
+          }
+        } catch (_) { /* fall through to urls */ }
+
+        urls.add(absoluteUrl);
       });
 
       $('img[src], script[src], link[href][rel~=stylesheet]').each((_, elem) => {
